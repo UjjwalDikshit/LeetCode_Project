@@ -1,0 +1,24 @@
+# Dependency directories
+node_modules/
+**/node_modules/  # All nested node_modules folders
+
+# Environment files
+.env
+.env.local
+.env*.local
+
+# Build/output directories
+dist/
+build/
+out/
+*.exe
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS/Editor files
+.DS_Store       # macOS
+.idea/          # JetBrains IDE
+.vscode/        # VS Code
+*.swp           # Vim swap files
