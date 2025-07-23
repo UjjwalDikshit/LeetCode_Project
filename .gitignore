@@ -1,6 +1,8 @@
 # Dependency directories
 node_modules/
-**/node_modules/  # All nested node_modules folders
+**/node_modules/  
+# All nested node_modules folders
+
 
 # Environment files
 .env
@@ -12,6 +14,10 @@ dist/
 build/
 out/
 *.exe
+
+# Ignore build artifacts in ALL day folders
+**/dist/
+**/cache/
 
 # Logs
 *.log
