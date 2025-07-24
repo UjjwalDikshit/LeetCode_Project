@@ -1,0 +1,51 @@
+
+// https://chatgpt.com/share/68826ac6-a054-8007-bf74-3d35e15758af            // about error
+// https://chat.deepseek.com/a/chat/s/8a7a5c0c-a11b-4583-a5dd-4c549bf5ccca  // about error and revision of some topic
+// https://chat.deepseek.com/a/chat/s/328b7d6d-fe4e-466c-a4d7-af65e82b2c55 // about github  how ot post
+
+
+
+const express = require('express');
+const app = express();
+require('dotenv').config();
+const main = require('./config/db')
+const cookieParser = require('cookie-parser')
+const authRouter = require("./routes/userAuth");
+const redisClient = require("./config/redis");
+
+
+
+app.use(express.json());
+app.use(cookieParser());
+
+app.use('/user',authRouter);
+
+
+const Initialization = async ()=>{
+
+    try{
+        await Promise.all([main(),redisClient.connect()]);
+        console.log("Database Connected");
+
+        app.listen(process.env.PORT,()=>{
+            console.log("Server is listening at port Number : " + process.env.PORT);
+        })
+    }
+    catch(err){
+        console.log("Error "+err);
+    }
+}
+
+Initialization();
+
+
+
+
+// main().
+// then(async()=>{
+//     app.listen(process.env.PORT,()=>{
+//     console.log("Server is listening at port number: "+ process.env.PORT);
+//     })                                                                // https://chatgpt.com/share/68809b1e-240c-8007-a7f6-341120b4dad7
+// }).catch(err => console.log("Error Occured: " + err));
+
+// this upper code is bulky and not redable so again writing this code down
