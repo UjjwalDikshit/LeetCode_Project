@@ -14,7 +14,7 @@ const createProblem = async ( req, res)=>{
             const languageId = getLanguageById(language);
 
             // creating batch for submission
-            const submissions = visibleTestCases.map(({input,output})=>({
+            const submissions = visibleTestCases.map(({input,output},index)=>({
                 source_code:completeCode,
                 language_id: languageId,
                 stdin: input,
