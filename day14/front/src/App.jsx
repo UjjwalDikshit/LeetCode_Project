@@ -16,9 +16,9 @@ function App(){
 // https://chatgpt.com/share/688e41b6-7d24-8007-ab0a-83e21fb7b69d
 
   // check initial authentication
-  // useEffect(()=>{
-  //   dispatch(checkAuth());
-  // },[dispatch]);
+  useEffect(()=>{
+    dispatch(checkAuth());
+  },[dispatch]);
 
   console.log("yaha bhi thik hai");
 
