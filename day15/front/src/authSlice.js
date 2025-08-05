@@ -8,12 +8,12 @@ export const registerUser = createAsyncThunk(
   'auth/register',
   async (userData, { rejectWithValue }) => {
     try {
-      console.log(userData +'1');
+      console.log(userData);
       const response = await axiosClient.post('/user/register', userData);
       return response.data.user;
     } catch (error) {
       console.log(userData +'2');
-      return rejectWithValue(error.response?.data?.message || error.message);
+      return rejectWithValue('here'+error.response?.data?.message || error.message);
     }
   }
 );
