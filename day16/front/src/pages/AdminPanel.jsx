@@ -77,7 +77,8 @@ function AdminPanel() {
     control,
     name: 'hiddenTestCases'
   });
-
+  // https://chatgpt.com/share/689750e0-3f20-8007-abd0-ec1a63005f03
+// https://chatgpt.com/share/689633ac-9ae0-8007-be2b-34cf985db1c1
   const onSubmit = async (data) => {
     try {
       await axiosClient.post('/problem/create', data);
@@ -167,7 +168,7 @@ function AdminPanel() {
               <button
                 type="button"
                 onClick={() => appendVisible({ input: '', output: '', explanation: '' })}
-                className="btn btn-sm btn-primary"
+                className= "btn btn-sm btn-primary"
               >
                 Add Visible Case
               </button>
@@ -297,3 +298,4 @@ function AdminPanel() {
 }
 
 export default AdminPanel;
+// https://chat.deepseek.com/a/chat/s/1096c7af-7634-4e1e-b1ab-e69231a8a2cd
