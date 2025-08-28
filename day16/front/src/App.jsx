@@ -7,7 +7,7 @@ import Home from "./pages/Homepage";
 import { useDispatch, useSelector } from "react-redux";
 import { useEffect } from "react";
 import { checkAuth } from "./authSlice";
-import AdminPanel from "./pages/AdminPanel";
+import AdminPanel from "./components/AdminPanel";
 
 
 function App(){

@@ -1,9 +1,17 @@
 import { useState, useEffect, useRef } from 'react';
-// import { useForm } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import Editor from '@monaco-editor/react';
 import { useParams } from 'react-router';
-import axiosClient from "../utils/axiosClient"
+import axiosClient from "../utils/axiosClient";
+import SubmissionHistory from "../components/SubmissionHistory"
 
+// https://chat.deepseek.com/a/chat/s/f8240962-4c3a-49f9-804b-dbbbc98a095c
+
+const langMap = {
+        cpp: 'C++',
+        java: 'Java',
+        javascript: 'JavaScript'
+};
 
 const ProblemPage = () => {
   const [problem, setProblem] = useState(null);
@@ -17,7 +25,7 @@ const ProblemPage = () => {
   const editorRef = useRef(null);
   let {problemId}  = useParams();
 
-//   const { handleSubmit } = useForm();
+  const { handleSubmit } = useForm();
 
 
 //     _id: '507f1f77bcf86cd799439011',
@@ -169,25 +177,12 @@ const ProblemPage = () => {
       try {
         
         const response = await axiosClient.get(`/problem/problemById/${problemId}`);
+       
         
-        const initialCode = response.data.startCode.find((sc) => {
-        
-        if (sc.language == "C++" && selectedLanguage == 'cpp')
-        return true;
-        else if (sc.language == "Java" && selectedLanguage == 'java')
-        return true;
-        else if (sc.language == "Javascript" && selectedLanguage == 'javascript')
-        return true;
+        const initialCode = response.data.startCode.find(sc => sc.language === langMap[selectedLanguage]).initialCode;
 
-        return false;
-        })?.initialCode || 'Hello';
-
-        console.log(initialCode);
         setProblem(response.data);
-        // console.log(response.data.startCode);
         
-
-        console.log(initialCode);
         setCode(initialCode);
         setLoading(false);
         
@@ -203,7 +198,7 @@ const ProblemPage = () => {
   // Update code when language changes
   useEffect(() => {
     if (problem) {
-      const initialCode = problem.startCode.find(sc => sc.language === selectedLanguage)?.initialCode || '';
+      const initialCode = problem.startCode.find(sc => sc.language === langMap[selectedLanguage]).initialCode;
       setCode(initialCode);
     }
   }, [selectedLanguage, problem]);
@@ -396,7 +391,7 @@ const ProblemPage = () => {
                 <div>
                   <h2 className="text-xl font-bold mb-4">My Submissions</h2>
                   <div className="text-gray-500">
-                    Your submission history will appear here.
+                    <SubmissionHistory problemId={problemId} />
                   </div>
                 </div>
               )}
@@ -518,7 +513,7 @@ const ProblemPage = () => {
                   <div>
                     {runResult.success ? (
                       <div>
-                        <h4 className="font-bold">✅ All test cases passed!</h4>
+                        <h4 className="font-bold">All test cases passed!</h4>
                         <p className="text-sm mt-2">Runtime: {runResult.runtime+" sec"}</p>
                         <p className="text-sm">Memory: {runResult.memory+" KB"}</p>
                         
