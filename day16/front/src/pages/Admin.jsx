@@ -32,6 +32,15 @@ function Admin() {
       color: 'btn-error',
       bgColor: 'bg-error/10',
       route: '/admin/delete'
+    },
+    {
+      id: 'video',
+      title: 'Video Problem',
+      description: 'Upload And Delete Videos',
+      icon: Video,
+      color: 'btn-success',
+      bgColor: 'bg-success/10',
+      route: '/admin/video'
     }
   ];
 
