@@ -17,20 +17,16 @@ function App(){
   const dispatch = useDispatch();
   const {isAuthenticated,user,loading} = useSelector((state)=>state.auth);
 
-  
   // check initial authentication
   useEffect(()=>{
     dispatch(checkAuth());
   },[dispatch]);
 
-  console.log(user,isAuthenticated);
-  
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center">
       <span className="loading loading-spinner loading-lg"></span>
     </div>;
   }
-
 
   return (
     <>
@@ -46,17 +42,6 @@ function App(){
         <Route path="/problem/:problemId" element={<ProblemPage/>}></Route>
         
       </Routes>
-
-      {/* 
-      <Route 
-      path = '/admin'
-      element={
-        isAuthenticated && user?.role === "admin" ? 
-        <AdminPanel/>:<Navigate to = "/"/>
-      }/> 
-      */}
-
-
     </>
   )
 }

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Edit, Trash2, Home, RefreshCw, Zap } from 'lucide-react';
+import { Plus, Edit, Trash2, Home, RefreshCw, Zap,Video } from 'lucide-react';
 import { NavLink } from 'react-router';
 
 function Admin() {

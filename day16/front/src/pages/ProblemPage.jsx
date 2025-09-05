@@ -5,6 +5,7 @@ import { useParams } from 'react-router';
 import axiosClient from "../utils/axiosClient"
 import SubmissionHistory from "../components/SubmissionHistory"
 import ChatAi from '../components/ChatAi';
+import Editorial from '../components/Editorial';
 
 const langMap = {
         cpp: 'C++',
@@ -24,6 +25,8 @@ const ProblemPage = () => {
   const [activeRightTab, setActiveRightTab] = useState('code');
   const editorRef = useRef(null);
   let {problemId}  = useParams();
+
+
 
   const { handleSubmit } = useForm();
 

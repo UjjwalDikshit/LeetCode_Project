@@ -1,18 +1,13 @@
-
-
 import {createAsyncThunk, createSlice} from '@reduxjs/toolkit';
 import axiosClient  from './utils/axiosClient';
-
 
 export const registerUser = createAsyncThunk(
   'auth/register',
   async (userData, { rejectWithValue }) => {
     try {
-      console.log(userData);
       const response = await axiosClient.post('/user/register', userData);
       return response.data.user;
     } catch (error) {
-      console.log(userData +'2');
       return rejectWithValue('here'+error.response?.data?.message || error.message);
     }
   }
@@ -25,8 +20,7 @@ export const loginUser = createAsyncThunk(
         try{
             const response = await axiosClient.post('user/login',Credentials);
             return response.data.user;
-        }
-        catch(error){
+        }catch(error){
             return rejectWithValue(error);
         }
     }
@@ -39,12 +33,13 @@ export const checkAuth = createAsyncThunk(
       const { data } = await axiosClient.get('/user/check');
       return data.user;
     } catch (error) {
-      // console.log("ya ya i am the reason");
+      if (error.response?.status === 401) {
+        return rejectWithValue(null); // Special case for no session
+      }
       return rejectWithValue(error);
     }
   }
 );
-
 
 export const logoutUser = createAsyncThunk(
     'auth/logout',
@@ -57,8 +52,6 @@ export const logoutUser = createAsyncThunk(
         }
     }
 );
-
-
 
 const authSlice = createSlice({
   name: 'auth',
