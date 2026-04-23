@@ -1,243 +1,262 @@
-const {getLanguageById,submitBatch,submitToken} = require("../utils/problemUtility");
+const {
+  getLanguageById,
+  submitBatch,
+  submitToken,
+} = require("../utils/problemUtility");
 const Problem = require("../models/problem");
 const User = require("../models/user");
 const Submission = require("../models/submission");
 
-const createProblem = async (req,res)=>{
+const generateWrapper = (userCode, testcaseInput) => {
+  const lines = testcaseInput.trim().split("\n");
 
-    const {title,description,difficulty,tags,
-        visibleTestCases,hiddenTestCases,startCode,
-        referenceSolution, problemCreator
-    } = req.body;
+  const n = parseInt(lines[0]);
+  const nums = lines[1].split(" ").map(Number);
+  const target = parseInt(lines[2]);
 
+  return `
+${userCode}
 
-    try{
-       
-      for(const {language,completeCode} of referenceSolution){
-         
+const nums = ${JSON.stringify(nums)};
+const target = ${target};
 
-        // source_code:
-        // language_id:
-        // stdin: 
-        // expectedOutput:
+const result = twoSum(nums, target);
 
-        const languageId = getLanguageById(language);
-          
-        // I am creating Batch submission
-        const submissions = visibleTestCases.map((testcase)=>({
-            source_code:completeCode,
-            language_id: languageId,
-            stdin: testcase.input,
-            expected_output: testcase.output
-        }));
-
-
-        const submitResult = await submitBatch(submissions);
-        // console.log(submitResult);
-
-        const resultToken = submitResult.map((value)=> value.token);
-
-        // ["db54881d-bcf5-4c7b-a2e3-d33fe7e25de7","ecc52a9b-ea80-4a00-ad50-4ab6cc3bb2a1","1b35ec3b-5776-48ef-b646-d5522bdeb2cc"]
-        
-       const testResult = await submitToken(resultToken);
-
-
-       console.log(testResult);
-
-       for(const test of testResult){
-        if(test.status_id!=3){
-         return res.status(400).send("Error Occured");
-        }
-       }
-
-      }
-
-
-      // We can store it in our DB
-
-    const userProblem =  await Problem.create({
-        ...req.body,
-        problemCreator: req.result._id
-      });
-
-      res.status(201).send("Problem Saved Successfully");
-    }
-    catch(err){
-        res.status(400).send("Error: "+err);
-    }
+if (Array.isArray(result)) {
+  console.log(result.join(" "));
+} else {
+  console.log(result);
 }
+`;
+};
 
-const updateProblem = async (req,res)=>{
-    
-  const {id} = req.params;
-  const {title,description,difficulty,tags,
-    visibleTestCases,hiddenTestCases,startCode,
-    referenceSolution, problemCreator
-   } = req.body;
+const createProblem = async (req, res) => {
+  const {
+    title,
+    description,
+    difficulty,
+    tags,
+    visibleTestCases,
+    hiddenTestCases,
+    startCode,
+    referenceSolution,
+  } = req.body;
 
-  try{
+  try {
+    //  Validate reference solution against visible test cases
+    for (const { language, completeCode } of referenceSolution) {
+      const languageId = getLanguageById(language);
 
-     if(!id){
+      const submissions = visibleTestCases.map((testcase) => ({
+        source_code: generateWrapper(completeCode, testcase.input),
+        language_id: languageId,
+        stdin: "",
+        expected_output: testcase.output,
+      }));
+
+      const submitResult = await submitBatch(submissions);
+
+      const tokens = submitResult.map((res) => res.token);
+
+      const results = await submitToken(tokens);
+
+      //  Debug (optional)
+      console.log("Judge0 Results:", results);
+
+      for (const test of results) {
+        if (test.status.id !== 3) {
+          return res.status(400).json({
+            success: false,
+            message: "Reference solution failed",
+            error: test.status.description,
+          });
+        }
+      }
+    }
+
+    //  Save Problem
+    const problem = await Problem.create({
+      title,
+      description,
+      difficulty,
+      tags,
+      visibleTestCases,
+      hiddenTestCases,
+      startCode,
+      referenceSolution,
+      problemCreator: req.result._id, // from auth middleware
+    });
+
+    res.status(201).json({
+      success: true,
+      message: "Problem created successfully",
+      problem,
+    });
+  } catch (err) {
+    console.error("CreateProblem Error:", err.message);
+
+    res.status(500).json({
+      success: false,
+      message: err.message || "Internal Server Error",
+    });
+  }
+};
+
+const updateProblem = async (req, res) => {
+  const { id } = req.params;
+  const {
+    title,
+    description,
+    difficulty,
+    tags,
+    visibleTestCases,
+    hiddenTestCases,
+    startCode,
+    referenceSolution,
+    problemCreator,
+  } = req.body;
+
+  try {
+    if (!id) {
       return res.status(400).send("Missing ID Field");
-     }
+    }
 
-    const DsaProblem =  await Problem.findById(id);
-    if(!DsaProblem)
-    {
+    const DsaProblem = await Problem.findById(id);
+    if (!DsaProblem) {
       return res.status(404).send("ID is not persent in server");
     }
-      
-    for(const {language,completeCode} of referenceSolution){
-         
 
+    for (const { language, completeCode } of referenceSolution) {
       // source_code:
       // language_id:
-      // stdin: 
+      // stdin:
       // expectedOutput:
 
       const languageId = getLanguageById(language);
-        
-      // I am creating Batch submission
-      const submissions = visibleTestCases.map((testcase)=>({
-          source_code:completeCode,
-          language_id: languageId,
-          stdin: testcase.input,
-          expected_output: testcase.output
-      }));
 
+      // I am creating Batch submission
+      const submissions = visibleTestCases.map((testcase) => ({
+        source_code: completeCode,
+        language_id: languageId,
+        stdin: testcase.input,
+        expected_output: testcase.output,
+      }));
 
       const submitResult = await submitBatch(submissions);
       // console.log(submitResult);
 
-      const resultToken = submitResult.map((value)=> value.token);
+      const resultToken = submitResult.map((value) => value.token);
 
       // ["db54881d-bcf5-4c7b-a2e3-d33fe7e25de7","ecc52a9b-ea80-4a00-ad50-4ab6cc3bb2a1","1b35ec3b-5776-48ef-b646-d5522bdeb2cc"]
-      
-     const testResult = await submitToken(resultToken);
 
-    //  console.log(testResult);
+      const testResult = await submitToken(resultToken);
 
-     for(const test of testResult){
-      if(test.status_id!=3){
-       return res.status(400).send("Error Occured");
+      //  console.log(testResult);
+
+      for (const test of testResult) {
+        if (test.status_id != 3) {
+          return res.status(400).send("Error Occured");
+        }
       }
-     }
-
     }
 
+    const newProblem = await Problem.findByIdAndUpdate(
+      id,
+      { ...req.body },
+      { runValidators: true, new: true },
+    );
 
-  const newProblem = await Problem.findByIdAndUpdate(id , {...req.body}, {runValidators:true, new:true});
-   
-  res.status(200).send(newProblem);
+    res.status(200).send(newProblem);
+  } catch (err) {
+    res.status(500).send("Error: " + err);
   }
-  catch(err){
-      res.status(500).send("Error: "+err);
+};
+
+const deleteProblem = async (req, res) => {
+  const { id } = req.params;
+  try {
+    if (!id) return res.status(400).send("ID is Missing");
+
+    const deletedProblem = await Problem.findByIdAndDelete(id);
+
+    if (!deletedProblem) return res.status(404).send("Problem is Missing");
+
+    res.status(200).send("Successfully Deleted");
+  } catch (err) {
+    res.status(500).send("Error: " + err);
   }
-}
+};
 
-const deleteProblem = async(req,res)=>{
+const getProblemById = async (req, res) => {
+  const { id } = req.params;
+  try {
+    if (!id) return res.status(400).send("ID is Missing");
 
-  const {id} = req.params;
-  try{
-     
-    if(!id)
-      return res.status(400).send("ID is Missing");
+    const getProblem = await Problem.findById(id).select(
+      "_id title description difficulty tags visibleTestCases startCode referenceSolution ",
+    );
 
-   const deletedProblem = await Problem.findByIdAndDelete(id);
+    if (!getProblem) return res.status(404).send("Problem is Missing");
 
-   if(!deletedProblem)
-    return res.status(404).send("Problem is Missing");
-
-
-   res.status(200).send("Successfully Deleted");
+    res.status(200).send(getProblem);
+  } catch (err) {
+    res.status(500).send("Error: " + err);
   }
-  catch(err){
-     
-    res.status(500).send("Error: "+err);
+};
+
+const getAllProblem = async (req, res) => {
+  try {
+    const getProblem = await Problem.find({}).select(
+      "_id title difficulty tags",
+    );
+
+    if (getProblem.length == 0)
+      return res.status(404).send("Problem is Missing");
+
+    res.status(200).send(getProblem);
+  } catch (err) {
+    res.status(500).send("Error: " + err);
   }
-}
+};
 
+const solvedAllProblembyUser = async (req, res) => {
+  try {
+    const userId = req.result._id;
 
-const getProblemById = async(req,res)=>{
+    const user = await User.findById(userId).populate({
+      path: "problemSolved",
+      select: "_id title difficulty tags",
+    });
 
-  const {id} = req.params;
-  try{
-     
-    if(!id)
-      return res.status(400).send("ID is Missing");
-
-    const getProblem = await Problem.findById(id).select('_id title description difficulty tags visibleTestCases startCode referenceSolution ');
-   
-   if(!getProblem)
-    return res.status(404).send("Problem is Missing");
-
-
-   res.status(200).send(getProblem);
+    res.status(200).send(user.problemSolved);
+  } catch (err) {
+    res.status(500).send("Server Error");
   }
-  catch(err){
-    res.status(500).send("Error: "+err);
-  }
-}
+};
 
-const getAllProblem = async(req,res)=>{
-
-  try{
-     
-    const getProblem = await Problem.find({}).select('_id title difficulty tags');
-
-   if(getProblem.length==0)
-    return res.status(404).send("Problem is Missing");
-
-
-   res.status(200).send(getProblem);
-  }
-  catch(err){
-    res.status(500).send("Error: "+err);
-  }
-}
-
-
-const solvedAllProblembyUser =  async(req,res)=>{
-   
-    try{
-       
-      const userId = req.result._id;
-
-      const user =  await User.findById(userId).populate({
-        path:"problemSolved",
-        select:"_id title difficulty tags"
-      });
-      
-      res.status(200).send(user.problemSolved);
-
-    }
-    catch(err){
-      res.status(500).send("Server Error");
-    }
-}
-
-const submittedProblem = async(req,res)=>{
-
-  try{
-     
+const submittedProblem = async (req, res) => {
+  try {
     const userId = req.result._id;
     const problemId = req.params.pid;
 
-  const ans = await Submission.find({userId,problemId});
-  
-  if(ans.length==0)
-    res.status(200).send("No Submission is persent");
+    const ans = await Submission.find({ userId, problemId });
 
-  res.status(200).send(ans);
+    if (ans.length == 0)
+      return res.status(200).send("No Submission is persent");
 
+    return res.status(200).send(ans);
+
+  } catch (err) {
+    return res.status(500).send("Internal Server Error");
   }
-  catch(err){
-     res.status(500).send("Internal Server Error");
-  }
-}
+};
 
-
-
-module.exports = {createProblem,updateProblem,deleteProblem,getProblemById,getAllProblem,solvedAllProblembyUser,submittedProblem};
-
-
+module.exports = {
+  createProblem,
+  updateProblem,
+  deleteProblem,
+  getProblemById,
+  getAllProblem,
+  solvedAllProblembyUser,
+  submittedProblem,
+};

@@ -31,7 +31,6 @@ function Signup() {
   }, [isAuthenticated, navigate]);
 
   const onSubmit = (data) => {
-    // seding data to backend
     dispatch(registerUser(data));
   };
 

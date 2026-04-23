@@ -1,173 +1,196 @@
 const Problem = require("../models/problem");
 const Submission = require("../models/submission");
 const User = require("../models/user");
-const {getLanguageById,submitBatch,submitToken} = require("../utils/problemUtility");
+const { getLanguageById, submitBatch, submitToken } = require("../utils/problemUtility");
 
-const submitCode = async (req,res)=>{
-   
-    // 
-    try{
-       const userId = req.result._id;
-       const problemId = req.params.id;
 
-       const {code,language} = req.body;
+const generateWrapper = (userCode, testcaseInput) => {
+  if (!testcaseInput || typeof testcaseInput !== "string") {
+    throw new Error("Invalid testcase input");
+  }
 
-      if(!userId||!code||!problemId||!language)
-        return res.status(400).send("Some field missing");
+  const lines = testcaseInput.trim().split("\n");
 
-    //    Fetch the problem from database
-       const problem =  await Problem.findById(problemId);
-    //    testcases(Hidden)
+  let nums = [];
+  let target;
 
-    //   Kya apne submission store kar du pehle....
-    const submittedResult = await Submission.create({
-          userId,
-          problemId,
-          code,
-          language,
-          status:'pending',
-          testCasesTotal:problem.hiddenTestCases.length
-        })
+  // ✅ Case 1: Standard format (3 lines)
+  if (lines.length >= 3) {
+    nums = lines[1].split(" ").map(Number);
+    target = parseInt(lines[2]);
+  }
+  // ✅ Case 2: Simple format (single line "2 3")
+  else if (lines.length === 1) {
+    nums = lines[0].split(" ").map(Number);
+    target = nums.pop(); // last value = target
+  }
+  else {
+    throw new Error(`Unsupported input format: ${testcaseInput}`);
+  }
 
-    //    Judge0 code ko submit karna hai
+  return `
+${userCode}
+
+const nums = ${JSON.stringify(nums)};
+const target = ${target};
+
+const result = twoSum(nums, target);
+
+if (Array.isArray(result)) {
+  console.log(result.join(" "));
+} else if (result !== undefined) {
+  console.log(result);
+} else {
+  console.log("");
+}
+`;
+};
+// ================= SUBMIT CODE =================
+const submitCode = async (req, res) => {
+  try {
+    const userId = req.result._id;
+    const problemId = req.params.id;
+    const { code, language } = req.body;
+
+    
+    if (!userId || !code || !problemId || !language) {
+      return res.status(400).json({ message: "Missing fields" });
+    }
+
+    const problem = await Problem.findById(problemId);
+
+    if (!problem) {
+      return res.status(404).json({ message: "Problem not found" });
+    }
+
+    console.log("Testcases:", problem.visibleTestCases);
+
+    //  Create submission entry
+    const submission = await Submission.create({
+      userId,
+      problemId,
+      code,
+      language,
+      status: "pending",
+      testCasesTotal: problem.hiddenTestCases.length
+    });
 
     const languageId = getLanguageById(language);
 
-    const submissions = problem.hiddenTestCases.map((testcase)=>({
-        source_code:code,
-        language_id: languageId,
-        stdin: testcase.input,
-        expected_output: testcase.output
+    //  Use WRAPPER (NO stdin)
+    const submissions = problem.hiddenTestCases.map((tc) => ({
+      source_code: generateWrapper(code, tc.input),
+      language_id: languageId,
+      stdin: "",
+      expected_output: tc.output
     }));
 
-
     const submitResult = await submitBatch(submissions);
-    
-    const resultToken = submitResult.map((value)=> value.token);
+    const tokens = submitResult.map(r => r.token);
+    const results = await submitToken(tokens);
 
-    const testResult = await submitToken(resultToken);
-    
-
-    // submittedResult ko update karo
-    let testCasesPassed = 0;
+    // ================= PROCESS RESULT =================
+    let passed = 0;
     let runtime = 0;
     let memory = 0;
-    let status = 'accepted';
-    let errorMessage = null;
+    let status = "accepted";
+    let errorMessage = "";
 
-
-    for(const test of testResult){
-        if(test.status_id==3){
-           testCasesPassed++;
-           runtime = runtime+parseFloat(test.time)
-           memory = Math.max(memory,test.memory);
-        }else{
-          if(test.status_id==4){
-            status = 'error'
-            errorMessage = test.stderr
-          }
-          else{
-            status = 'wrong'
-            errorMessage = test.stderr
-          }
-        }
+    for (const test of results) {
+      if (test.status.id === 3) {
+        passed++;
+        runtime += parseFloat(test.time || 0);
+        memory = Math.max(memory, test.memory || 0);
+      } else {
+        status = test.status.id === 4 ? "wrong" : "error";
+        errorMessage = test.stderr || test.compile_output || test.message;
+      }
     }
 
+    // ✅ Update submission
+    submission.status = status;
+    submission.testCasesPassed = passed;
+    submission.runtime = runtime;
+    submission.memory = memory;
+    submission.errorMessage = errorMessage;
 
-    // Store the result in Database in Submission
-    submittedResult.status   = status;
-    submittedResult.testCasesPassed = testCasesPassed;
-    submittedResult.errorMessage = errorMessage;
-    submittedResult.runtime = runtime;
-    submittedResult.memory = memory;
+    await submission.save();
 
-    await submittedResult.save();
-    
-    // ProblemId ko insert karenge userSchema ke problemSolved mein if it is not persent there.
-    
-    // req.result == user Information
-
-    if(!req.result.problemSolved.includes(problemId)){
-      req.result.problemSolved.push(problemId);
-      await req.result.save();
+    // ✅ Add solved problem if accepted
+    if (status === "accepted") {
+      const user = await User.findById(userId);
+      if (!user.problemSolved.includes(problemId)) {
+        user.problemSolved.push(problemId);
+        await user.save();
+      }
     }
 
-    res.status(201).send(submittedResult);
-       
+    return res.status(200).json({
+      accepted: status === "accepted",
+      passedTestCases: passed,
+      totalTestCases: problem.hiddenTestCases.length,
+      runtime,
+      memory,
+      error: errorMessage
+    });
+
+  } catch (err) {
+    console.error("Submit Error:", err);
+    return res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+
+// ================= RUN CODE =================
+const runCode = async (req, res) => {
+  try {
+    const problemId = req.params.id;
+    const { code, language } = req.body;
+
+    if (!code || !language || !problemId) {
+      return res.status(400).json({ message: "Missing fields" });
     }
-    catch(err){
-      res.status(500).send("Internal Server Error "+ err);
+
+    const problem = await Problem.findById(problemId);
+
+    if (!problem) {
+      return res.status(404).json({ message: "Problem not found" });
     }
 
-}
+    const languageId = getLanguageById(language);
+
+    // ✅ Use WRAPPER for visible testcases
+    const submissions = problem.visibleTestCases.map((tc) => ({
+      source_code: generateWrapper(code, tc.input),
+      language_id: languageId,
+      stdin: "",
+      expected_output: tc.output
+    }));
+
+    const submitResult = await submitBatch(submissions);
+    const tokens = submitResult.map(r => r.token);
+    const results = await submitToken(tokens);
+
+    // Format response for frontend
+    const formatted = results.map((r, i) => ({
+      stdin: problem.visibleTestCases[i].input,
+      expected_output: problem.visibleTestCases[i].output,
+      stdout: r.stdout,
+      status_id: r.status.id
+    }));
+
+    return res.status(200).json({
+      success: formatted.every(tc => tc.status_id === 3),
+      testCases: formatted,
+      runtime: results.reduce((acc, r) => acc + parseFloat(r.time || 0), 0),
+      memory: Math.max(...results.map(r => r.memory || 0))
+    });
+
+  } catch (err) {
+    console.error("Run Error:", err);
+    return res.status(500).json({ message: "Internal Server Error" });
+  }
+};
 
 
-const runCode = async(req,res)=>{
-    
-     // 
-     try{
-      const userId = req.result._id;
-      const problemId = req.params.id;
-
-      const {code,language} = req.body;
-
-     if(!userId||!code||!problemId||!language)
-       return res.status(400).send("Some field missing");
-
-   //    Fetch the problem from database
-      const problem =  await Problem.findById(problemId);
-   //    testcases(Hidden)
-
-
-   //    Judge0 code ko submit karna hai
-
-   const languageId = getLanguageById(language);
-
-   const submissions = problem.visibleTestCases.map((testcase)=>({
-       source_code:code,
-       language_id: languageId,
-       stdin: testcase.input,
-       expected_output: testcase.output
-   }));
-
-
-   const submitResult = await submitBatch(submissions);
-   
-   const resultToken = submitResult.map((value)=> value.token);
-
-   const testResult = await submitToken(resultToken);
-
-   
-  
-   res.status(201).send(testResult);
-      
-   }
-   catch(err){
-     res.status(500).send("Internal Server Error "+ err);
-   }
-}
-
-
-module.exports = {submitCode,runCode};
-
-
-
-//     language_id: 54,
-//     stdin: '2 3',
-//     expected_output: '5',
-//     stdout: '5',
-//     status_id: 3,
-//     created_at: '2025-05-12T16:47:37.239Z',
-//     finished_at: '2025-05-12T16:47:37.695Z',
-//     time: '0.002',
-//     memory: 904,
-//     stderr: null,
-//     token: '611405fa-4f31-44a6-99c8-6f407bc14e73',
-
-
-// User.findByIdUpdate({
-// })
-
-//const user =  User.findById(id)
-// user.firstName = "Mohit";
-// await user.save();
+module.exports = { submitCode, runCode };

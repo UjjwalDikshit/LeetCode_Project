@@ -6,7 +6,6 @@ import { useNavigate, NavLink } from 'react-router';
 import { loginUser } from "../authSlice";
 import { useEffect, useState } from 'react';
 
-// https://chatgpt.com/share/688e41b6-7d24-8007-ab0a-83e21fb7b69d detailed discussion of how flow of rerendering fo navigate
 
 const loginSchema = z.object({
   emailId: z.string().email("Invalid Email"),
@@ -17,7 +16,7 @@ function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { isAuthenticated, loading } = useSelector((state) => state.auth);
+  const { isAuthenticated, loading, error } = useSelector((state) => state.auth);
   const {
     register,
     handleSubmit,
@@ -30,11 +29,7 @@ function Login() {
     }
   }, [isAuthenticated, navigate]);
 
-  // https://chatgpt.com/s/t_6890db57ac64819195cd53c1595ab9aa  how zod internally run print error
-
   const onSubmit = (data) => {
-   // Backend data ko send kar dena chaiye?
-
     dispatch(loginUser(data));
   };
 
@@ -94,7 +89,6 @@ function Login() {
                 <span className="text-error text-sm mt-1">{errors.password.message}</span>
               )}
             </div>
-              {/*disabling submit button until repsonse not come*/}
 
             <div className="form-control mt-8 flex justify-center">
               <button

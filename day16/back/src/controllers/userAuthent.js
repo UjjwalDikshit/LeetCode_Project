@@ -9,15 +9,15 @@ const Submission = require("../models/submission")
 const register = async (req,res)=>{
  
     try {
-        // ✅ Validate user input
+        //  Validate user input
         validate(req.body);
 
         const { firstName, emailId, password } = req.body;
 
-        // ✅ Hash password
+        //  Hash password
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        // ✅ Create user data object
+        //  Create user data object
         const userData = {
         firstName,
         emailId,
@@ -29,7 +29,7 @@ const register = async (req,res)=>{
         const user = await User.create(userData);
         console.log("User created:", user);
 
-        // ✅ Generate JWT token
+        //  Generate JWT token
         const token = jwt.sign(
         { _id: user._id, emailId: user.emailId, role: user.role },
         process.env.JWT_KEY,
@@ -52,17 +52,17 @@ const register = async (req,res)=>{
     catch(err){
         console.error("Register error:", err);
 
-        // ✅ Handle duplicate email error
+        //  Handle duplicate email error
         if (err.code === 11000) {
         return res.status(400).json({ error: "Email already exists" });
         }
 
-        // ✅ Handle Mongoose validation errors
+        //  Handle Mongoose validation errors
         if (err.name === "ValidationError") {
         return res.status(400).json({ error: err.message });
         }
 
-        // ✅ Generic fallback
+        //  Generic fallback
         return res.status(500).json({ error: "Something went wrong" });
     }
 }

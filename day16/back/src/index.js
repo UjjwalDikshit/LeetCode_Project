@@ -42,7 +42,5 @@ const InitalizeConnection = async ()=>{
         console.log("Error: index "+err);
     }
 }
-
-
 InitalizeConnection();
 
