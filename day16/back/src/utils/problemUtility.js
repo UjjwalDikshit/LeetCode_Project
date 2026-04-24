@@ -150,7 +150,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const submitToken = async (tokens) => {
   try {
     let attempts = 0;
-    const MAX_ATTEMPTS = 10;
+    const MAX_ATTEMPTS = 15; 
 
     while (attempts < MAX_ATTEMPTS) {
       const response = await axios.get(
