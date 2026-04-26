@@ -1,40 +1,33 @@
 const Problem = require("../models/problem");
 const Submission = require("../models/submission");
 const User = require("../models/user");
-const { getLanguageById, submitBatch, submitToken } = require("../utils/problemUtility");
+const {
+  getLanguageById,
+  submitBatch,
+  submitToken,
+} = require("../utils/problemUtility");
 
-
-const generateWrapper = (userCode, testcaseInput) => {
+const generateWrapper = (userCode, testcaseInput, functionName, language) => {
   if (!testcaseInput || typeof testcaseInput !== "string") {
     throw new Error("Invalid testcase input");
   }
 
-  const lines = testcaseInput.trim().split("\n");
+  //FLEXIBLE PARSER (works for both formats)
+  const raw = testcaseInput.trim().split(/\s+/).map(Number);
 
-  let nums = [];
-  let target;
+  const n = raw[0];
+  const nums = raw.slice(1, n + 1);
+  const target = raw[n + 1] || 0;
 
-  // ✅ Case 1: Standard format (3 lines)
-  if (lines.length >= 3) {
-    nums = lines[1].split(" ").map(Number);
-    target = parseInt(lines[2]);
-  }
-  // ✅ Case 2: Simple format (single line "2 3")
-  else if (lines.length === 1) {
-    nums = lines[0].split(" ").map(Number);
-    target = nums.pop(); // last value = target
-  }
-  else {
-    throw new Error(`Unsupported input format: ${testcaseInput}`);
-  }
-
-  return `
+  // ================= JAVASCRIPT =================
+  if (language === "javascript") {
+    return `
 ${userCode}
 
 const nums = ${JSON.stringify(nums)};
 const target = ${target};
 
-const result = twoSum(nums, target);
+const result = ${functionName}(nums, target);
 
 if (Array.isArray(result)) {
   console.log(result.join(" "));
@@ -44,6 +37,52 @@ if (Array.isArray(result)) {
   console.log("");
 }
 `;
+  }
+
+  // ================= JAVA =================
+  if (language === "java") {
+    return `
+import java.util.*;
+
+${userCode}
+
+class Main {
+  public static void main(String[] args) {
+    int[] nums = new int[]{${nums.join(",")}};
+    int target = ${target};
+
+    Solution sol = new Solution();
+    int result = sol.${functionName}(nums, target);
+
+    System.out.println(result);
+  }
+}
+`;
+  }
+
+  // ================= C++ =================
+  if (language === "c++" || language === "cpp") {
+    return `
+#include <bits/stdc++.h>
+using namespace std;
+
+${userCode}
+
+int main() {
+  vector<int> nums = {${nums.join(",")}};
+  int target = ${target};
+
+  Solution sol;
+  int result = sol.${functionName}(nums, target);
+
+  cout << result;
+
+  return 0;
+}
+`;
+  }
+
+  throw new Error("Unsupported language");
 };
 // ================= SUBMIT CODE =================
 const submitCode = async (req, res) => {
@@ -52,7 +91,6 @@ const submitCode = async (req, res) => {
     const problemId = req.params.id;
     const { code, language } = req.body;
 
-    
     if (!userId || !code || !problemId || !language) {
       return res.status(400).json({ message: "Missing fields" });
     }
@@ -72,21 +110,26 @@ const submitCode = async (req, res) => {
       code,
       language,
       status: "pending",
-      testCasesTotal: problem.hiddenTestCases.length
+      testCasesTotal: problem.hiddenTestCases.length,
     });
 
     const languageId = getLanguageById(language);
 
     //  Use WRAPPER (NO stdin)
     const submissions = problem.hiddenTestCases.map((tc) => ({
-      source_code: generateWrapper(code, tc.input),
+      source_code: generateWrapper(
+        code,
+        tc.input,
+        problem.functionName,
+        language,
+      ),
       language_id: languageId,
       stdin: "",
-      expected_output: tc.output
+      expected_output: tc.output,
     }));
 
     const submitResult = await submitBatch(submissions);
-    const tokens = submitResult.map(r => r.token);
+    const tokens = submitResult.map((r) => r.token);
     const results = await submitToken(tokens);
 
     // ================= PROCESS RESULT =================
@@ -102,12 +145,18 @@ const submitCode = async (req, res) => {
         runtime += parseFloat(test.time || 0);
         memory = Math.max(memory, test.memory || 0);
       } else {
-        status = test.status.id === 4 ? "wrong" : "error";
+        if (test.status.id === 3) {
+          passed++;
+        } else if (test.status.id === 4) {
+          status = "wrong";
+        } else {
+          status = "error";
+        }
         errorMessage = test.stderr || test.compile_output || test.message;
       }
     }
 
-    // ✅ Update submission
+    //  Update submission
     submission.status = status;
     submission.testCasesPassed = passed;
     submission.runtime = runtime;
@@ -116,10 +165,12 @@ const submitCode = async (req, res) => {
 
     await submission.save();
 
-    // ✅ Add solved problem if accepted
+    //  Add solved problem if accepted
     if (status === "accepted") {
       const user = await User.findById(userId);
-      if (!user.problemSolved.includes(problemId)) {
+      if (
+        !user.problemSolved.some((id) => id.toString() === problemId.toString())
+      ) {
         user.problemSolved.push(problemId);
         await user.save();
       }
@@ -131,15 +182,13 @@ const submitCode = async (req, res) => {
       totalTestCases: problem.hiddenTestCases.length,
       runtime,
       memory,
-      error: errorMessage
+      error: errorMessage,
     });
-
   } catch (err) {
     console.error("Submit Error:", err);
     return res.status(500).json({ message: "Internal Server Error" });
   }
 };
-
 
 // ================= RUN CODE =================
 const runCode = async (req, res) => {
@@ -159,16 +208,21 @@ const runCode = async (req, res) => {
 
     const languageId = getLanguageById(language);
 
-    // ✅ Use WRAPPER for visible testcases
+    //  Use WRAPPER for visible testcases
     const submissions = problem.visibleTestCases.map((tc) => ({
-      source_code: generateWrapper(code, tc.input),
+      source_code: generateWrapper(
+        code,
+        tc.input,
+        problem.functionName,
+        language,
+      ),
       language_id: languageId,
       stdin: "",
-      expected_output: tc.output
+      expected_output: tc.output,
     }));
 
     const submitResult = await submitBatch(submissions);
-    const tokens = submitResult.map(r => r.token);
+    const tokens = submitResult.map((r) => r.token);
     const results = await submitToken(tokens);
 
     // Format response for frontend
@@ -176,21 +230,19 @@ const runCode = async (req, res) => {
       stdin: problem.visibleTestCases[i].input,
       expected_output: problem.visibleTestCases[i].output,
       stdout: r.stdout,
-      status_id: r.status.id
+      status_id: r.status.id,
     }));
 
     return res.status(200).json({
-      success: formatted.every(tc => tc.status_id === 3),
+      success: formatted.every((tc) => tc.status_id === 3),
       testCases: formatted,
       runtime: results.reduce((acc, r) => acc + parseFloat(r.time || 0), 0),
-      memory: Math.max(...results.map(r => r.memory || 0))
+      memory: Math.max(...results.map((r) => r.memory || 0)),
     });
-
   } catch (err) {
     console.error("Run Error:", err);
     return res.status(500).json({ message: "Internal Server Error" });
   }
 };
-
 
 module.exports = { submitCode, runCode };
